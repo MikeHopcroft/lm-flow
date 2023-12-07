@@ -1,5 +1,5 @@
 * V2
-  * Set up npm command - `lmflow`
+  * x Set up npm command - `lmflow`
   * Config
     * env
     * env file

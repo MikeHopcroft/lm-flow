@@ -8,7 +8,7 @@ import {
   missingEnvironmentVariable,
   TypeChatLanguageModel,
 } from './typechat-models.js';
-import {IModel} from './types.js';
+import {IModel, IServiceModelConfiguration} from './types.js';
 
 export const AzureModelDefinition = z.object({
   type: z.literal('azure'),
@@ -20,11 +20,13 @@ export const AzureModelDefinition = z.object({
 export type AzureModelDefinition = z.infer<typeof AzureModelDefinition>;
 
 export class AzureModel implements IModel {
+  config: IServiceModelConfiguration;
   specification: AzureModelDefinition;
   model?: TypeChatLanguageModel;
 
-  constructor(spec: AzureModelDefinition) {
+  constructor(spec: AzureModelDefinition, config: IServiceModelConfiguration) {
     this.specification = spec;
+    this.config = config;
   }
 
   name() {
@@ -50,12 +52,10 @@ export class AzureModel implements IModel {
 
   private lazyCreateTypeChatModel() {
     if (!this.model) {
-      const env = process.env;
       const apiKey =
-        env[azure_openai_api_key] ??
-        missingEnvironmentVariable(azure_openai_api_key);
+        this.config.key ?? missingEnvironmentVariable(azure_openai_api_key);
       const endPoint =
-        env[azure_openai_endpoint] ??
+        this.config.endpoint ??
         missingEnvironmentVariable(azure_openai_endpoint);
 
       this.model = createAzureOpenAILanguageModel(apiKey, endPoint);

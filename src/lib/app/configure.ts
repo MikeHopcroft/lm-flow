@@ -5,10 +5,16 @@ import os from 'os';
 import {v4 as uuidv4} from 'uuid';
 
 import {
+  azure_openai_api_key,
+  azure_openai_endpoint,
   defaultConcurrancy,
   defaultInputFolder,
   defaultOutputFolder,
+  default_openai_endpoint,
   input_folder,
+  openai_api_key,
+  openai_endpoint,
+  openai_organization,
   output_folder,
 } from '../constants.js';
 import {AnyLink} from '../core/index.js';
@@ -16,6 +22,7 @@ import {
   AvailableModels,
   IAvailableModels,
   IModel,
+  IServiceModelConfiguration,
   loadModels,
 } from '../models/index.js';
 import {
@@ -26,6 +33,7 @@ import {
 } from '../shared/index.js';
 
 export interface Configuration {
+  azure: IServiceModelConfiguration;
   cmd: string;
   concurrancy: number;
   cwd: string;
@@ -37,7 +45,7 @@ export interface Configuration {
   logger: ILogger;
   logFile?: string;
   models: IAvailableModels;
-  openAIKey?: string;
+  openai: IServiceModelConfiguration;
   outputFolder: string;
   testRunId: string;
   timestamp: Date;
@@ -154,12 +162,12 @@ function createConfiguration(
   const json = !!options.json;
   const logFile = options.logFile;
 
-  const modelsFile =
-    options.models || process.env.MODEL_DEFINITION || './data/models.yaml';
-  const modelsFromFile = loadModels(modelsFile);
-  const models = new AvailableModels([...modelsFromFile, ...additionalModels]);
-
-  const openAIKey = options.key || process.env.OPENAI_KEY;
+  const openAIKey = (options.key || process.env[openai_api_key]) ?? '';
+  const openAIEndpoint =
+    process.env[openai_endpoint] ?? default_openai_endpoint;
+  const openAIOrganization = process.env[openai_organization] ?? '';
+  const azureOpenAIKey = process.env[azure_openai_api_key] ?? '';
+  const azureOpenAIEndpoint = process.env[azure_openai_endpoint] ?? '';
 
   const filter = options.filter ? suitePredicate(options.filter) : () => true;
 
@@ -174,7 +182,11 @@ function createConfiguration(
   logger.info(`  CONCURRANCY: ${concurrancy}`, 1);
   // WARNING: For security, do not log openAIKey
 
-  return {
+  const config = {
+    azure: {
+      endpoint: azureOpenAIEndpoint,
+      key: azureOpenAIKey,
+    },
     cmd,
     concurrancy,
     cwd,
@@ -184,11 +196,23 @@ function createConfiguration(
     json,
     logFile,
     logger,
-    models,
-    openAIKey,
+    openai: {
+      endpoint: openAIEndpoint,
+      key: openAIKey,
+      organization: openAIOrganization,
+    },
     outputFolder,
     testRunId,
     timestamp,
     user,
+  };
+
+  const modelsFile =
+    options.models || process.env.MODEL_DEFINITION || './data/models.yaml';
+  const modelsFromFile = loadModels(modelsFile, config);
+
+  return {
+    ...config,
+    models: new AvailableModels([...modelsFromFile, ...additionalModels]),
   };
 }

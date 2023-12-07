@@ -4,6 +4,8 @@ import yaml from 'js-yaml';
 import z from 'zod';
 import {generateErrorMessage} from 'zod-error';
 
+import {Configuration} from '../app/configure.js';
+
 import {AzureModel, AzureModelDefinition} from './azure-model.js';
 import {FunctionModelDefinition, functionModels} from './function-models.js';
 import {MockModel, MockModelDefinition} from './mock-model.js';
@@ -17,11 +19,12 @@ export const ModelDefinition = z.discriminatedUnion('type', [
   OpenAIModelDefinition,
 ]);
 type ModelDefinition = z.infer<typeof ModelDefinition>;
+type ConfigForModel = Omit<Configuration, 'models'>;
 
 export const ModelDefinitionList = z.array(ModelDefinition);
 export type ModelDefinitionList = z.infer<typeof ModelDefinitionList>;
 
-export function loadModels(filename: string): IModel[] {
+export function loadModels(filename: string, config: ConfigForModel): IModel[] {
   const ext = path.parse(filename).ext.toLowerCase();
   if (ext !== '.yaml' && ext !== 'json') {
     throw new Error(`Model ${filename} must be YAML or JSON.`);
@@ -35,13 +38,23 @@ export function loadModels(filename: string): IModel[] {
     throw new Error(errorMessage);
   }
 
-  return result.data.map(createModel);
+  return result.data.map((definition: ModelDefinition) =>
+    createModel(definition, config)
+  );
 }
 
-export function createModel(definition: ModelDefinition): IModel {
+export function createModel(
+  definition: ModelDefinition,
+  config?: ConfigForModel
+): IModel {
   switch (definition.type) {
     case 'azure':
-      return new AzureModel(definition);
+      if (!config) {
+        throw new Error(
+          'Model definition file references Azure model but no configuration was provided.'
+        );
+      }
+      return new AzureModel(definition, config.azure);
     case 'function':
       if (definition.name in functionModels) {
         return functionModels[definition.name];
@@ -53,7 +66,12 @@ export function createModel(definition: ModelDefinition): IModel {
     case 'mock':
       return new MockModel(definition);
     case 'openai':
-      return new OpenAIModel(definition);
+      if (!config) {
+        throw new Error(
+          'Model definition file references OpenAI model but no configuration was provided.'
+        );
+      }
+      return new OpenAIModel(definition, config.openai);
     default:
       throw new Error(
         `Model definition file references unknown model type ${

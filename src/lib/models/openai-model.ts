@@ -1,11 +1,6 @@
 import z from 'zod';
 
-import {
-  default_openai_endpoint,
-  openai_api_key,
-  openai_endpoint,
-  openai_organization,
-} from '../constants.js';
+import {openai_api_key} from '../constants.js';
 
 import {Conversation} from './conversation.js';
 import {
@@ -13,7 +8,7 @@ import {
   missingEnvironmentVariable,
   TypeChatLanguageModel,
 } from './typechat-models.js';
-import {IModel} from './types.js';
+import {IModel, IServiceModelConfiguration} from './types.js';
 
 export const OpenAIModelDefinition = z.object({
   type: z.literal('openai'),
@@ -26,11 +21,13 @@ export const OpenAIModelDefinition = z.object({
 export type OpenAIModelDefinition = z.infer<typeof OpenAIModelDefinition>;
 
 export class OpenAIModel implements IModel {
+  config: IServiceModelConfiguration;
   specification: OpenAIModelDefinition;
   model?: TypeChatLanguageModel;
 
-  constructor(spec: OpenAIModelDefinition) {
+  constructor(spec: OpenAIModelDefinition, config: IServiceModelConfiguration) {
     this.specification = spec;
+    this.config = config;
   }
 
   name() {
@@ -56,12 +53,11 @@ export class OpenAIModel implements IModel {
 
   private lazyCreateTypeChatModel() {
     if (!this.model) {
-      const env = process.env;
       const apiKey =
-        env[openai_api_key] ?? missingEnvironmentVariable(openai_api_key);
+        this.config.key ?? missingEnvironmentVariable(openai_api_key);
       const model = this.specification.config.model;
-      const endPoint = env[openai_endpoint] ?? default_openai_endpoint;
-      const org = env[openai_organization] ?? '';
+      const endPoint = this.config.endpoint;
+      const org = this.config.organization;
 
       this.model = createOpenAILanguageModel(apiKey, model, endPoint, org);
     }
